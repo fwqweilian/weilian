@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gemepro.api.dao.DataskyhistoryCustomerDao">
+    <resultMap id="dataskyhistoryCustomerMap" type="com.gemepro.api.entity.DataskyhistoryCustomerEntity">
+        <id column="id"  property="id"/>
+        <result column="mac"  property="mac"/>
+        <result column="equipment_name"  property="equipmentName"/>
+        <result column="equipment_id"  property="equipmentId"/>
+        <result column="time"  property="time"/>
+    </resultMap>
+    <select id="selectByPrimaryKey" resultType="com.gemepro.api.entity.DataskyhistoryCustomerEntity">
+    select  *  from "datasky_ history_customer"
+    where id = #{id}
+  </select>
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from "datasky_ history_customer"
+    where id = #{id}
+  </delete>
+    <insert id="insert" parameterType="com.gemepro.api.entity.DataskyhistoryCustomerEntity">
+        <selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+        insert into "datasky_ history_customer" (mac, equipment_name, equipment_id,
+        time)
+        values (#{mac}, #{equipmentName}, #{equipmentId},
+        #{time})
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.gemepro.api.entity.DataskyhistoryCustomerEntity">
+        update "datasky_ history_customer"
+        <set>
+            <if test="mac != null">
+                mac = #{mac},
+            </if>
+            <if test="equipmentName != null">
+                equipment_name = #{equipmentName},
+            </if>
+            <if test="equipmentId != null">
+                equipment_id = #{equipmentId},
+            </if>
+            <if test="time != null">
+                time = #{time},
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+</mapper>

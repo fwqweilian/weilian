@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gemepro.api.dao.DataskyUserDao">
+    <resultMap id="dataskyUserMap" type="com.gemepro.api.entity.DataskyUserEntity">
+        <id column="USER_ID" property="USERID"/>
+        <result column="USERNAME" property="USERNAME"/>
+        <result column="PASSWORD" property="PASSWORD"/>
+        <result column="NAME" property="NAME"/>
+        <result column="RIGHTS" property="RIGHTS"/>
+        <result column="ROLE_ID" property="ROLE_ID"/>
+        <result column="LAST_LOGIN" property="LAST_LOGIN"/>
+        <result column="IP" property="IP"/>
+        <result column="STATUS" property="STATUS"/>
+        <result column="BZ" property="BZ"/>
+        <result column="SKIN" property="SKIN"/>
+        <result column="EMAIL" property="EMAIL"/>
+        <result column="NUMBER" property="NUMBER"/>
+        <result column="PHONE" property="PHONE"/>
+        <result column="department_id" property="department_id"/>
+        <result column="corpId" property="corpId"/>
+        <result column="quanxianzpd" property="quanxianzpd"/>
+    </resultMap>
+
+    <select id="queryUserByTel" resultType="com.gemepro.api.entity.DataskyUserEntity">
+        select *
+
+        from sys_user
+        where (mobile = #{mobile} OR username = #{mobile})
+          AND STATUS =0
+    </select>
+
+    <select id="queryObject" resultType="com.gemepro.api.entity.DataskyUserEntity">
+        select *
+        from sys_user
+        where USER_ID=#{id}
+          AND STATUS =0
+    </select>
+
+    <!--登陆-->
+    <select id="adminLogin" resultType="com.gemepro.api.entity.DataskyUserEntity">
+        select
+            *
+        from sys_user du
+        where du.password = #{password}
+          AND du.username = #{username}
+          and du.STATUS = 0
+    </select>
+    <!--XXXX登陆-->
+    <select id="queManLogin" resultType="com.gemepro.api.entity.DataskyUserEntity">
+        select *
+        from sys_user
+        where password = #{password}
+          AND (username = #{username} or mobile = #{username})
+          AND type = 2
+    </select>
+    <!--店铺列表(包括设备),删除的店铺和设备不查询-->
+    <select id="queryUserList" resultType="com.gemepro.api.vo.DataSkyUserEquipmentVo">
+        select du.id,
+               du.username,
+               du.address,
+               du.state,
+               count(de.equipment_state)
+               as
+               sum,
+               sum(
+               de
+               .
+               equipment_state=
+               1) as
+               num
+        from sys_user
+             du
+             LEFT
+             JOIN
+             datasky_equipment
+             de
+        ON de
+           .
+           user_id=
+           du
+           .
+           id
+        where du.create_id=#{adminId} and du.state > -1
+            and username LIKE CONCAT(CONCAT('%'
+            ,#{search}
+            ,'%'))
+        GROUP BY du.id
+    </select>
+
+    <select id="queryList" resultType="com.gemepro.api.entity.DataskyUserEntity">
+        select * from sys_user
+        <choose>
+            <when test="sidx != null and sidx.trim() != ''">
+                order by ${sidx} ${order}
+            </when>
+            <otherwise>
+                order by id desc
+            </otherwise>
+        </choose>
+        <if test="offset != null and limit != null">
+            limit #{offset}, #{limit}
+        </if>
+    </select>
+
+    <select id="queryTotal" resultType="int">
+        select count(*)
+        from sys_user
+        where state > -1
+    </select>
+
+    <insert id="save" parameterType="com.gemepro.api.entity.DataskyUserEntity" useGeneratedKeys="true"
+            keyProperty="id">
+        insert into sys_user
+        (`username`,
+         `mobile`,
+         `password`,
+         `contacts`,
+         `type`,
+         `address`,
+         `desc`,
+         `state`,
+         `jurisdiction`,
+         `create_time`,
+         `create_id`,
+         `user_rssi`,
+         `user_time`)
+        values
+        (#{username},
+         #{mobile},
+         #{password},
+         #{contacts},
+         #{type},
+         #{address},
+         #{desc},
+         #{state},
+         #{jurisdiction},
+         #{createTime},
+         #{createId},
+         #{userRssi},
+         #{userTime})
+    </insert>
+
+    <!--修改密码-->
+    <update id="updatePassword" parameterType="map">
+        update sys_user
+        set `password` = #{newPassword}
+        where id = #{userId}
+          and password = #{password}
+    </update>
+
+    <!--修改联系人-->
+    <update id="updateContacts" parameterType="map">
+        update sys_user
+        set `contacts` = #{newcontacts}
+        where id = #{userId}
+          and contacts = #{oldcontacts}
+    </update>
+
+    <update id="update" parameterType="com.gemepro.api.entity.DataskyUserEntity">
+        update sys_user
+        <set>
+            <if test="username != null">
+                `username` = #{username},
+            </if>
+            <if test="mobile != null">
+                `mobile` = #{mobile},
+            </if>
+            <if test=" password != null">
+                `password` = #{password},
+            </if>
+            <if test=" contacts != null">
+                `contacts` = #{contacts},
+            </if>
+            <if test=" type != null">
+                `type` = #{type},
+            </if>
+            <if test=" address != null">
+                `address` = #{address},
+            </if>
+            <if test=" desc != null">
+                `desc` = #{desc},
+            </if>
+            <if test=" state != null">
+                `state` = #{state},
+            </if>
+            <if test=" jurisdiction != null">
+                `jurisdiction` = #{jurisdiction},
+            </if>
+            <if test=" createTime != null">
+                `create_time`= #{createTime},
+            </if>
+            <if test=" createId != null">
+                `create_id` = #{createId},
+            </if>
+            <if test="userRssi !=null">
+                `user_rssi` =#{userRssi},
+            </if>
+            <if test="userTime !=null">
+                `user_time` =#{userTime}
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="delete">
+        delete
+        from sys_user
+        where id = #{value}
+    </delete>
+
+    <delete id="deleteBatch">
+        delete from sys_user where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

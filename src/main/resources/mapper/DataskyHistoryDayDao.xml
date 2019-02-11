@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gemepro.api.dao.DataskyHistoryDayDao">
+    <resultMap id="dataskyHistoryDayMap" type="com.gemepro.api.entity.DataskyHistoryDayEntity">
+        <id column="id"  property="id"/>
+        <result column="time_stamp"  property="timeStamp"/>
+        <result column="passenger_flow"  property="passengerFlow"/>
+        <result column="customer"  property="customer"/>
+        <result column="equipment_name"  property="equipmentName"/>
+        <result column="equipment_id"  property="equipmentId"/>
+        <result column="one_time"  property="oneTime"/>
+        <result column="last_time"  property="lastTime"/>
+    </resultMap>
+    <select id="selectByPrimaryKey" resultType="com.gemepro.api.entity.DataskyHistoryDayEntity">
+        select *  from datasky_history_day
+        where id = #{id}
+    </select>
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from datasky_history_day
+    where id = #{id}
+  </delete>
+    <insert id="insert" parameterType="com.gemepro.api.entity.DataskyHistoryDayEntity">
+        <selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+        insert into datasky_history_day (time_stamp, passenger_flow, customer,
+        equipment_name, equipment_id, one_time,
+        last_time)
+        values (#{timeStamp}, #{passengerFlow}, #{customer},
+        #{equipmentName}, #{equipmentId}, #{oneTime},
+        #{lastTime})
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.gemepro.api.entity.DataskyHistoryDayEntity">
+        update datasky_history_day
+        <set>
+            <if test="timeStamp != null">
+                time_stamp = #{timeStamp},
+            </if>
+            <if test="passengerFlow != null">
+                passenger_flow = #{passengerFlow},
+            </if>
+            <if test="customer != null">
+                customer = #{customer},
+            </if>
+            <if test="equipmentName != null">
+                equipment_name = #{equipmentName},
+            </if>
+            <if test="equipmentId != null">
+                equipment_id = #{equipmentId},
+            </if>
+            <if test="oneTime != null">
+                one_time = #{oneTime},
+            </if>
+            <if test="lastTime != null">
+                last_time = #{lastTime},
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+</mapper>

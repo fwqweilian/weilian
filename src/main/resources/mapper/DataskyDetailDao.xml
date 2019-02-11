@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gemepro.api.dao.DataskyDetailDao">
+    <resultMap id="dataskyDetailMap" type="com.gemepro.api.entity.DataskyDetailEntity">
+        <id column="id" property="id"/>
+        <result column="mac" property="mac"/>
+        <result column="rssi" property="rssi"/>
+        <result column="range" property="range"/>
+        <result column="time" property="time"/>
+        <result column="datatime" property="datatime"/>
+        <result column="dataskyid" property="dataskyid"/>
+        <result column="remarks" property="remarks"/>
+        <result column="mac_time" property="macTime"/>
+        <result column="ms" property="ms"/>
+    </resultMap>
+
+    <!--================================================概况统计====================================================================-->
+
+    <!--当前客流量，约等于当前的客户数-->
+    <select id="queryByIdCount" resultType="java.lang.Integer">
+         select IFNULL(t1.count,0) as count
+        from
+        (
+        select count( DISTINCT dtc.mac,dtc.datasky_id,dtc.mac_time) as count
+        from  datasky_to_cus dtc
+        where dtc.dataSky_id in (select de.equipment_id from datasky_equipment de where de.user_id=#{userId})
+        GROUP BY  dtc.mac_time DESC LIMIT 1
+        ) t1
+
+        RIGHT JOIN (select 0 ) t2 ON 1=1
+    </select>
+
+    <!--今日客户、驻店时长，客流按客户数计算-->
+    <select id="queryByTime" resultType="com.gemepro.api.entity.DataskyDetailEntity">
+        select DISTINCT dtc.mac,dtc.mac_time from datasky_to_cus dtc
+		where dtc.datasky_id in(select de.equipment_id from datasky_equipment de where de.user_id=#{userId})
+        GROUP BY dtc.mac
+    </select>
+
+    <!--今日老客户数-->
+    <select id="queryToOldCus" resultType="java.lang.Integer">
+        select IFNULL(t1.count,0) as count
+        from
+        (
+         select COUNT(DISTINCT dtc.mac) as count from datasky_to_cus dtc
+                where EXISTS(select * from datasky_mac dm where dtc.mac=dm.mac and dm.user_id=#{userId})
+        ) t1
+
+        RIGHT JOIN (select 0 ) t2 ON 1=1
+    </select>
+
+    <!--昨日老客户-->
+    <select id="queryYesOldCus" resultType="java.lang.Integer">
+        select IFNULL(t1.count,0) as count
+        from
+        (
+        select COUNT(dyc.mac) as count from datasky_mac dyc
+        where EXISTS(select * from datasky_mac dm
+        where dyc.mac=dm.mac
+        and dm.user_id=#{userId}
+        and date_format(dm.datatime,'%Y-%m-%d') &lt; #{beginTime})
+        and dyc.user_id=#{userId}
+        and date_format(dyc.datatime,'%Y-%m-%d')=#{beginTime}
+        ) t1
+        RIGHT JOIN (select 0 ) t2 ON 1=1
+    </select>
+
+    <!--昨日客户、客流、驻店时长-->
+    <select id="queryByIdTime2" resultType="com.gemepro.api.entity.DataskyDetailEntity">
+        select dm.mac,dt.mac_time as macTime from datasky_mac dm
+        LEFT JOIN datasky_time dt ON dm.id=dt.mac_id
+        where dm.user_id=#{userId}  and  date_format(dm.datatime,'%Y-%m-%d') = #{beginTime}
+    </select>
+
+    <!--今日客流量-->
+    <select id="queryDayCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT( dtc.mac_time,'%H') num,count(DISTINCT dtc.mac) as count from datasky_to_cus dtc
+        LEFT JOIN datasky_equipment de ON dtc.datasky_id=de.equipment_id
+        WHERE  de.user_id=#{userId}
+        group by num
+   </select>
+
+    <!--非今日客流量-->
+    <select id="queryNoDayCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT( dm.datatime,'%H') num,count( dm.id) as count from datasky_mac dm
+        WHERE dm.user_id=#{userId} and date_format(dm.datatime,'%Y-%m-%d')=#{beginTime}
+        group by num
+    </select>
+
+    <!--年客流量-->
+    <select id="queryYearCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT(dm.datatime,'%m') num,count(dm.id) as count
+        from datasky_mac dm
+        WHERE date_format(dm.datatime,'%Y')=#{beginTime}
+        and dm.user_id=#{userId}
+        GROUP BY num
+    </select>
+
+    <!--月客流量,不是当月-->
+    <select id="queryMonthCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        SELECT DATE_FORMAT(dm.datatime,'%d') num,count(dm.id) as count
+        FROM datasky_mac  dm
+        WHERE date_format (dm.datatime,'%Y-%m')=#{beginTime}
+        and dm.user_id=#{userId}
+        GROUP BY num
+    </select>
+
+    <!--月客流量,当月-->
+    <select id="queryMonthToCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT( dtc.mac_time,'%d') num,count(DISTINCT dtc.mac) as count from datasky_to_cus dtc
+        LEFT JOIN datasky_equipment de ON dtc.datasky_id=de.equipment_id
+        WHERE  de.user_id=#{userId}
+        group by num
+    </select>
+
+
+    <!--================================================数据统计====================================================================-->
+
+    <!--数据统计===进店新/老客户数-->
+    <select id="queryDataDayCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select IFNULL(a.num,b.num) num,IFNULL(b.oldCus,0) oldCus,(IFNULL(a.allCus,0)-IFNULL(b.oldCus,0)) as newCus
+        from
+        (select DATE_FORMAT(dyc.datatime,'%H') num,COUNT(*) as allCus from datasky_mac dyc
+        where date_format (dyc.datatime,'%Y-%m-%d')=#{beginTime} GROUP BY num ) a
+
+        LEFT JOIN
+
+        (select DATE_FORMAT(dyc.datatime,'%H') num,count(dyc.id) as oldCus from datasky_mac dyc
+        where date_format (dyc.datatime,'%Y-%m-%d')=#{beginTime}
+        and EXISTS(select * from datasky_mac dm
+        where dyc.mac=dm.mac
+        and dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m-%d') &lt; #{beginTime} )
+        GROUP BY num) b
+
+        on a.num=b.num
+    </select>
+
+    <select id="queryDataMonthCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select IFNULL(a.num,b.num) num,IFNULL(b.oldCus,0) oldCus,(IFNULL(a.allCus,0)-IFNULL(b.oldCus,0)) as newCus
+        from
+        (select DATE_FORMAT(dyc.datatime,'%d') num,COUNT(*) as allCus from datasky_mac dyc
+        where date_format (dyc.datatime,'%Y-%m')=#{beginTime} GROUP BY num ) a
+
+        LEFT JOIN
+
+        (select DATE_FORMAT(dyc.datatime,'%d') num,count(dyc.id) as oldCus from datasky_mac dyc
+        where date_format (dyc.datatime,'%Y-%m')=#{beginTime}
+        and EXISTS(select * from datasky_mac dm
+        where dyc.mac=dm.mac
+        and dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m')  &lt; #{beginTime} )
+        GROUP BY num) b
+
+        on a.num=b.num
+    </select>
+
+    <select id="queryDataYearCus" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select IFNULL(a.num,b.num) num,IFNULL(b.oldCus,0) oldCus,(IFNULL(a.allCus,0)-IFNULL(b.oldCus,0)) as newCus
+        from
+        (select DATE_FORMAT(dyc.datatime,'%m') num,COUNT(*) as allCus from datasky_mac dyc
+        where date_format (dyc.datatime,'%Y')=#{beginTime}  GROUP BY num ) a
+
+        LEFT JOIN
+
+        (select DATE_FORMAT(dyc.datatime,'%m') num,count(dyc.id) as oldCus from datasky_mac dyc
+        where date_format (dyc.datatime,'%Y')=#{beginTime}
+        and EXISTS(select * from datasky_mac dm
+        where dyc.mac=dm.mac
+        and dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y') &lt; #{beginTime} )
+        GROUP BY num) b
+
+        on a.num=b.num
+    </select>
+
+    <!--累计驻店时长-->
+    <select id="queryDataDayTimeLength" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT(dm.datatime,'%H') num ,count(*)*du.frequency as count from datasky_mac dm
+        LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where  du.id=#{userId} and date_format (dm.datatime,'%Y-%m-%d')=#{beginTime}
+        GROUP BY num
+    </select>
+
+    <select id="queryDataMonthTimeLength" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT(dm.datatime,'%d') num ,count(*)*du.frequency as count from datasky_mac dm
+        LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where  du.id=#{userId} and date_format (dm.datatime,'%Y-%m')=#{beginTime}
+        GROUP BY num
+    </select>
+
+    <select id="queryDataYearTimeLength" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT(dm.datatime,'%m') num ,count(*)*du.frequency as count from datasky_mac dm
+        LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where  du.id=#{userId} and date_format (dm.datatime,'%Y')=#{beginTime}
+        GROUP BY num
+    </select>
+
+    <!--驻店时长分布=====复杂-->
+    <select id="queryTimeLengthDistributionBig" resultType="com.gemepro.api.vo.DataSkyDistributionVo">
+        select sum(aa.count  &lt; 10 and aa.count >= 0) as bigOne ,
+        sum(aa.count  &lt; 20 and aa.count >=10) as bigTwo,
+        sum(aa.count  &lt; 30 and aa.count >=20) as bigThree,
+        sum(aa.count  &lt; 40 and aa.count >=30) as bigFour,
+        sum(aa.count  &lt; 50 and aa.count >=40) as bigFive,
+        sum(aa.count  &lt; 60 and aa.count >=50) as bigSix,
+        sum(aa.count  &lt; 70 and aa.count >=60) as bigSeven,
+        sum(aa.count  &lt; 80 and aa.count >=70) as bigEight,
+        sum(aa.count >=80) as bigNine
+        from (select dm.mac,COUNT(dm.mac)*du.frequency  as count
+        from datasky_mac dm LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id =dm.user_id
+        where dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m-%d') >= #{beginTime}
+        and date_format (dm.datatime,'%Y-%m-%d') &lt;= #{endTime}
+        GROUP BY dm.mac) aa
+    </select>
+
+    <select id="queryTimeLengthDistributionSmall" resultType="com.gemepro.api.vo.DataSkyDistributionVo">
+        select sum(aa.count  &lt; 5 and aa.count >= 0) as smallOne ,
+        sum(aa.count  &lt; 10 and aa.count >=5) as smallTwo,
+        sum(aa.count  &lt; 15 and aa.count >=10) as smallThree,
+        sum(aa.count  &lt; 20 and aa.count >=15) as smallFour,
+        sum(aa.count  &lt; 25 and aa.count >=20) as smallFive,
+        sum(aa.count  &lt; 30 and aa.count >=25) as smallSix,
+        sum(aa.count >=30) as smallSeven
+        from (select dm.mac,COUNT(dm.mac)*du.frequency  as count
+        from datasky_mac dm LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id =dm.user_id
+        where dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m-%d') >= #{beginTime}
+        and date_format (dm.datatime,'%Y-%m-%d') &lt;= #{endTime}
+        GROUP BY dm.mac) aa
+    </select>
+
+    <!--驻店时长对比-->
+    <select id="queryTimeLengthContrast" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select count(*)*du.frequency as count,DAYOFWEEK(dm.datatime)-1 as week,DATE_FORMAT(dm.datatime,'%d') as  num,
+        (WEEK(DATE_FORMAT(dm.datatime,'%Y-%m-%d'))-WEEK(DATE_FORMAT(dm.datatime,'%Y-%m-%d')-INTERVAL DAY(DATE_FORMAT(dm.datatime,'%Y-%m-%d'))-1 DAY) +1) as weeknum
+        from datasky_mac dm LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where dm.user_id=#{userId} and date_format (dm.datatime,'%Y-%m')=#{beginTime}
+        GROUP BY num
+    </select>
+
+    <!--客户客流平均驻店时长-->
+    <select id="queryYearAverageTimeLength" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select DATE_FORMAT(dm.datatime,'%m') num ,count(*)*du.frequency  as count
+        from datasky_mac dm
+        LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where dm.user_id=#{userId} and date_format (dm.datatime,'%Y')=#{beginTime}
+        GROUP BY num
+    </select>
+
+    <select id="queryMonthAverageTimeLength" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select  DATE_FORMAT(dm.datatime,'%d') num,count(*)*du.frequency as count
+        from datasky_mac dm LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where dm.user_id=#{userId} and date_format (dm.datatime,'%Y-%m')=#{beginTime}
+        GROUP BY num
+    </select>
+
+    <select id="queryDayAverageTimeLength" resultType="com.gemepro.api.vo.DataSkyHeadVo">
+        select  DATE_FORMAT(dm.datatime,'%H') num,count(*)*du.frequency as count
+        from datasky_mac dm LEFT JOIN datasky_time dt ON dm.id=dt.mac_id LEFT JOIN datasky_user du ON du.id=dm.user_id
+        where dm.user_id=#{userId} and date_format (dm.datatime,'%Y-%m-%d')=#{beginTime}
+        GROUP BY num
+    </select>
+
+
+    <!--============================================================品牌统计============================================================-->
+    <!--进店客户数-->
+    <select id="queryBrandInCus" resultType="com.gemepro.api.vo.DataSkyVo">
+        select count(*) as count,DATE_FORMAT(dm.datatime,'%Y-%m-%d') num,
+        SUM(IFNULL(dm.brand='Samsung',0))  as Samsung ,
+        SUM(IFNULL(dm.brand='Huawei',0))  as Huawei,
+        SUM(IFNULL(dm.brand='Apple',0))  as Apple,
+        SUM(IFNULL(dm.brand='Vivo',0))  as Vivo,
+        SUM(IFNULL(dm.brand='Xiaomi',0))  as Xiaomi,
+        SUM(IFNULL(dm.brand='Oppo',0))  as Oppo,
+        SUM(IFNULL(dm.brand='Meizu',0))  as Meizu,
+        SUM(ISNULL(dm.brand))  as Other
+        from datasky_mac dm
+        where dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m-%d')>= #{beginTime}
+        and date_format (dm.datatime,'%Y-%m-%d') &lt;= #{endTime}
+        GROUP BY num
+    </select>
+
+    <!--累计驻店时长-->
+    <select id="queryBrandTimeLength" resultType="com.gemepro.api.vo.DataSkyVo">
+        select count(*) as count,DATE_FORMAT(dm.datatime,'%Y-%m-%d') num,
+        SUM(IFNULL(dm.brand='Samsung',0))*du.frequency as Samsung ,
+        SUM(IFNULL(dm.brand='Huawei',0))*du.frequency as Huawei,
+        SUM(IFNULL(dm.brand='Apple',0))*du.frequency as Apple,
+        SUM(IFNULL(dm.brand='Vivo',0))*du.frequency as Vivo,
+        SUM(IFNULL(dm.brand='Xiaomi',0))*du.frequency as Xiaomi,
+        SUM(IFNULL(dm.brand='Oppo',0))*du.frequency as Oppo,
+        SUM(IFNULL(dm.brand='Meizu',0))*du.frequency as Meizu,
+        SUM(ISNULL(dm.brand))*du.frequency as Other
+        from datasky_mac dm LEFT JOIN datasky_user du ON dm.user_id=du.id LEFT JOIN datasky_time dt ON dm.id=dt.mac_id
+        where dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m-%d') >= #{beginTime}
+        and date_format (dm.datatime,'%Y-%m-%d') &lt;= #{endTime}
+        GROUP BY num
+    </select>
+
+    <!--客户平均驻店时长-->
+    <select id="queryBrandAverageTimeLength" resultType="com.gemepro.api.vo.DataSkyVo">
+        select count(*) as count,DATE_FORMAT(dm.datatime,'%Y-%m-%d') num,
+        SUM(IFNULL(dm.brand='Samsung',0))*du.frequency as Samsung ,
+        SUM(IFNULL(dm.brand='Huawei',0))*du.frequency as Huawei,
+        SUM(IFNULL(dm.brand='Apple',0))*du.frequency as Apple,
+        SUM(IFNULL(dm.brand='Vivo',0))*du.frequency as Vivo,
+        SUM(IFNULL(dm.brand='Xiaomi',0))*du.frequency as Xiaomi,
+        SUM(IFNULL(dm.brand='Oppo',0))*du.frequency as Oppo,
+        SUM(IFNULL(dm.brand='Meizu',0))*du.frequency as Meizu,
+        SUM(ISNULL(dm.brand))*du.frequency as Other
+        from datasky_mac dm LEFT JOIN datasky_user du ON dm.user_id=du.id LEFT JOIN datasky_time dt ON dt.mac_id=dm.id
+        where dm.user_id=#{userId}
+        and date_format (dm.datatime,'%Y-%m-%d') >= #{beginTime}
+        and date_format (dm.datatime,'%Y-%m-%d') &lt;= #{endTime}
+        GROUP BY num
+    </select>
+
+    <insert id="save" parameterType="com.gemepro.api.entity.DataskyDetailEntity">
+        insert into datasky_detail
+        (
+        `mac`,
+        `rssi`,
+        `range`,
+        `time`,
+        `ms`,
+        `dataskyid`,
+        `remarks`,
+        `datatime`
+        )
+        values (
+        #{mac},
+        #{rssi},
+        #{range},
+        #{time},
+        #{ms},
+        #{dataskyid},
+        #{remarks},
+        #{datatime}
+        )
+    </insert>
+    <insert id="insertSelective" parameterType="com.gemepro.api.entity.DataskyDetailEntity">
+        <selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+        insert into datasky_detail
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="mac != null">
+                mac,
+            </if>
+            <if test="rssi != null">
+                rssi,
+            </if>
+            <if test="range != null">
+                range,
+            </if>
+            <if test="time != null">
+                time,
+            </if>
+            <if test="ms != null">
+                ms,
+            </if>
+            <if test="dataskyid != null">
+                dataskyid,
+            </if>
+            <if test="remarks != null">
+                remarks,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="mac != null">
+                #{mac},
+            </if>
+            <if test="rssi != null">
+                #{rssi},
+            </if>
+            <if test="range != null">
+                #{range},
+            </if>
+            <if test="time != null">
+                #{time},
+            </if>
+            <if test="ms != null">
+                #{ms},
+            </if>
+            <if test="dataskyid != null">
+                #{dataskyid},
+            </if>
+            <if test="remarks != null">
+                #{remarks},
+            </if>
+        </trim>
+    </insert>
+
+</mapper>
